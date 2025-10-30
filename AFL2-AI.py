@@ -34,7 +34,7 @@ SAMPLE_EDGES = [
     ("Bishan", "Ang Mo Kio", 3, 0.80),
     ("Ang Mo Kio", "Yishun", 10, 1.50),
     ("City Hall", "Bras Basah", 1, 0.50),
-    ("Bras Basah", "Bencoolen", 2, 0.60),
+    ("Bras Basah", "Bencoolen", 2, 0.7),
 ]
 
 # ---------- Graph utilities ----------
