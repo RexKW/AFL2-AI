@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
 """
-MRT Dijkstra GUI (Singapore) - demo script
-- Implements Dijkstra's algorithm on a small sample Singapore MRT subgraph.
-- GUI (Tkinter) allows selecting start/end stations and choosing optimization:
-    * Time
-    * Price
-    * Combined (weighted sum of normalized time and price)
-- You can also load a CSV of edges with columns: station1,station2,time_minutes,price_sgd
-- Save this file and run: python mrt_dijkstra_gui.py
+Singapore MRT Dijkstra Path Finder
+Clean, Modern UI + Distance, Time & Fare
 """
 
 import tkinter as tk
@@ -15,117 +9,112 @@ from tkinter import ttk, filedialog, messagebox
 import csv
 import math
 
-# ---------- Sample graph data (small demo subset) ----------
-# Edges defined as (u, v, time_minutes, price_sgd)
+# ---------- Sample Graph ----------
+# Each tuple = (Station A, Station B, Distance km, Time min)
 SAMPLE_EDGES = [
-    ("Jurong East", "Boon Lay", 8, 1.20),
-    ("Jurong East", "Yishun", 25, 2.50),  # unrealistic but for demo
-    ("Jurong East", "Bukit Batok", 4, 0.90),
-    ("Bukit Batok", "Bukit Gombak", 3, 0.70),
-    ("Bukit Gombak", "Choa Chu Kang", 4, 0.80),
-    ("Choa Chu Kang", "Yew Tee", 5, 0.85),
-    ("Raffles Place", "City Hall", 2, 0.60),
-    ("City Hall", "Bugis", 3, 0.70),
-    ("Bugis", "Dhoby Ghaut", 2, 0.60),
-    ("Dhoby Ghaut", "Orchard", 5, 1.00),
-    ("Orchard", "Newton", 3, 0.70),
-    ("Newton", "Novena", 3, 0.70),
-    ("Novena", "Bishan", 4, 0.90),
-    ("Bishan", "Ang Mo Kio", 3, 0.80),
-    ("Ang Mo Kio", "Yishun", 10, 1.50),
-    ("City Hall", "Bras Basah", 1, 0.50),
-    ("Bras Basah", "Bencoolen", 2, 0.7),
+    ("Jurong East", "Bukit Batok", 4, 6),
+    ("Bukit Batok", "Bukit Gombak", 2, 3),
+    ("Bukit Gombak", "Choa Chu Kang", 3, 4),
+    ("Choa Chu Kang", "Yew Tee", 2, 3),
+    ("Jurong East", "Boon Lay", 10, 14),
+    ("Boon Lay", "Choa Chu Kang", 12, 18),
+    ("City Hall", "Raffles Place", 2, 3),
+    ("City Hall", "Bugis", 3, 4),
+    ("Bugis", "Dhoby Ghaut", 2, 3),
+    ("Dhoby Ghaut", "Orchard", 4, 6),
+    ("Orchard", "Newton", 2, 3),
+    ("Newton", "Novena", 2, 3),
+    ("Novena", "Bishan", 4, 6),
+    ("Bishan", "Ang Mo Kio", 3, 4),
+    ("Ang Mo Kio", "Yishun", 10, 13),
+    ("Jurong East", "Yishun", 22, 30),
 ]
 
-# ---------- Graph utilities ----------
+# ---------- Fare Calculation ----------
+def fare_from_distance(distance_km):
+    """Compute fare (SGD) based on MRT distance rules."""
+    if distance_km <= 3.2:
+        return 0.99
+    elif distance_km <= 8.2:
+        return 0.99 + (distance_km - 3.2) * (1.47 - 0.99) / (8.2 - 3.2)
+    elif distance_km <= 40:
+        return 1.47 + (distance_km - 8.2) * (2.24 - 1.47) / (40 - 8.2)
+    else:
+        return 2.24  # capped
 
+# ---------- Graph Utilities ----------
 def build_graph(edges):
     graph = {}
-    for u, v, t, p in edges:
-        graph.setdefault(u, []).append((v, float(t), float(p)))
-        graph.setdefault(v, []).append((u, float(t), float(p)))
+    for u, v, dist, time in edges:
+        price = fare_from_distance(dist)
+        graph.setdefault(u, []).append((v, dist, time, price))
+        graph.setdefault(v, []).append((u, dist, time, price))
     return graph
 
-def dijkstra(graph, start, end, mode="time", weight_time=0.5):
-    # We will compute distance based on chosen mode:
-    # - "time": use time as weight
-    # - "price": use price as weight
-    # - "combined": normalize time and price across graph and use weighted sum
+def dijkstra(graph, start, end):
     nodes = list(graph.keys())
     if start not in graph or end not in graph:
-        return None, None, "Start or end station not in graph."
+        return None, None, "Start or end station not found."
 
-    # For combined mode, precompute normalization factors (min-max scaling)
-    times = []
-    prices = []
-    for u in graph:
-        for v, t, p in graph[u]:
-            times.append(t)
-            prices.append(p)
-    # avoid zero-range
-    t_min, t_max = (min(times), max(times)) if times else (0,1)
-    p_min, p_max = (min(prices), max(prices)) if prices else (0,1)
-
-    def edge_weight(t, p):
-        if mode == "time":
-            return t
-        elif mode == "price":
-            return p
-        else:
-            # normalized (0..1)
-            tn = (t - t_min) / (t_max - t_min) if t_max > t_min else 0.0
-            pn = (p - p_min) / (p_max - p_min) if p_max > p_min else 0.0
-            return weight_time * tn + (1 - weight_time) * pn
-
-    # Classic Dijkstra
     unvisited = set(nodes)
     dist = {n: math.inf for n in nodes}
     prev = {n: None for n in nodes}
     dist[start] = 0.0
 
     while unvisited:
-        # pick node with smallest dist
-        current = min((n for n in unvisited), key=lambda x: dist[x], default=None)
+        current = min(unvisited, key=lambda x: dist[x], default=None)
         if current is None or dist[current] == math.inf:
             break
         if current == end:
             break
         unvisited.remove(current)
-        for neighbor, t, p in graph.get(current, []):
+
+        for neighbor, d, t, p in graph.get(current, []):
             if neighbor not in unvisited:
-                # skip already-finalized neighbor
                 continue
-            w = edge_weight(t, p)
-            alt = dist[current] + w
+            alt = dist[current] + d
             if alt < dist[neighbor]:
                 dist[neighbor] = alt
-                prev[neighbor] = (current, t, p)
-    # reconstruct path
+                prev[neighbor] = (current, d, t, p)
+
     if dist[end] == math.inf:
         return None, None, "No path found."
+
     path = []
+    total_distance = 0.0
     total_time = 0.0
     total_price = 0.0
+
     cur = end
     while cur != start:
         pr = prev[cur]
         if pr is None:
             break
-        prev_node, t, p = pr
-        path.append((prev_node, cur, t, p))
+        prev_node, d, t, p = pr
+        path.append((prev_node, cur, d, t, p))
+        total_distance += d
         total_time += t
         total_price += p
         cur = prev_node
     path.reverse()
-    return path, {"time": total_time, "price": total_price}, None
+
+    return path, {"distance": total_distance, "time": total_time, "price": total_price}, None
 
 # ---------- GUI ----------
 class MRTApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Singapore MRT - Dijkstra Path Finder (Demo)")
-        self.geometry("820x520")
+        self.title("🚇 Singapore MRT Route Finder")
+        self.geometry("700x420")
+        self.configure(bg="#f9fafc")
         self.resizable(False, False)
+
+        style = ttk.Style()
+        style.theme_use("clam")
+        style.configure("TButton", font=("Segoe UI", 10, "bold"), padding=8, background="#0078D7", foreground="white")
+        style.map("TButton", background=[("active", "#005fa3")])
+        style.configure("TLabel", font=("Segoe UI", 10))
+        style.configure("TCombobox", font=("Segoe UI", 10), padding=5)
 
         self.edges = SAMPLE_EDGES.copy()
         self.graph = build_graph(self.edges)
@@ -134,128 +123,79 @@ class MRTApp(tk.Tk):
         self.create_widgets()
 
     def create_widgets(self):
-        frm_left = ttk.Frame(self, padding=12)
-        frm_left.place(x=10, y=10, width=380, height=500)
+        frm_main = ttk.Frame(self, padding=20)
+        frm_main.pack(fill="both", expand=True)
 
-        ttk.Label(frm_left, text="Start Station:").pack(anchor="w")
-        self.start_var = tk.StringVar(value=self.stations[0] if self.stations else "")
-        self.start_combo = ttk.Combobox(frm_left, values=self.stations, textvariable=self.start_var, width=40)
-        self.start_combo.pack(fill="x", pady=4)
+        ttk.Label(frm_main, text="Singapore MRT Path Finder", font=("Segoe UI Semibold", 16)).pack(pady=(0, 15))
 
-        ttk.Label(frm_left, text="End Station:").pack(anchor="w", pady=(8,0))
-        self.end_var = tk.StringVar(value=self.stations[-1] if self.stations else "")
-        self.end_combo = ttk.Combobox(frm_left, values=self.stations, textvariable=self.end_var, width=40)
-        self.end_combo.pack(fill="x", pady=4)
+        frm_inputs = ttk.Frame(frm_main)
+        frm_inputs.pack(pady=5)
 
-        ttk.Label(frm_left, text="Optimize by:").pack(anchor="w", pady=(8,0))
-        self.mode_var = tk.StringVar(value="time")
-        modes = [("Time", "time"), ("Price", "price"), ("Combined (time vs price)", "combined")]
-        for text, val in modes:
-            ttk.Radiobutton(frm_left, text=text, variable=self.mode_var, value=val, command=self.on_mode_change).pack(anchor="w")
+        ttk.Label(frm_inputs, text="Start:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.start_var = tk.StringVar(value=self.stations[0])
+        ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.start_var, width=25).grid(row=0, column=1, padx=5)
 
-        self.weight_frame = ttk.Frame(frm_left)
-        self.weight_label = ttk.Label(self.weight_frame, text="Weight for Time (0 = price-only, 1 = time-only):")
-        self.weight_label.pack(anchor="w")
-        self.weight_var = tk.DoubleVar(value=0.6)
-        self.weight_scale = ttk.Scale(self.weight_frame, from_=0.0, to=1.0, variable=self.weight_var, orient="horizontal")
-        self.weight_scale.pack(fill="x", pady=6)
-        self.weight_frame.pack(fill="x", pady=8)
+        ttk.Label(frm_inputs, text="Destination:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
+        self.end_var = tk.StringVar(value=self.stations[-1])
+        ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.end_var, width=25).grid(row=0, column=3, padx=5)
 
-        ttk.Button(frm_left, text="Find Path", command=self.find_path).pack(fill="x", pady=(10,4))
-        ttk.Button(frm_left, text="Load edges from CSV", command=self.load_csv).pack(fill="x", pady=4)
-        ttk.Button(frm_left, text="Reset to demo graph", command=self.reset_graph).pack(fill="x", pady=4)
+        ttk.Button(frm_main, text="Find Route", command=self.find_path).pack(pady=15)
 
-        # Right panel: results and edges table
-        frm_right = ttk.Frame(self, padding=12)
-        frm_right.place(x=400, y=10, width=410, height=500)
+        self.result_frame = ttk.Frame(frm_main)
+        self.result_frame.pack(pady=10, fill="x")
 
-        ttk.Label(frm_right, text="Result:").pack(anchor="w")
-        self.result_txt = tk.Text(frm_right, height=12, width=48, state="disabled", wrap="word")
-        self.result_txt.pack(pady=4)
+        self.result_label = ttk.Label(self.result_frame, text="", font=("Segoe UI", 11), foreground="#333", wraplength=650, justify="center")
+        self.result_label.pack()
 
-        ttk.Label(frm_right, text="Current edges (u - v : time min, price SGD):").pack(anchor="w", pady=(8,0))
-        self.edges_list = tk.Text(frm_right, height=14, width=48, state="disabled", wrap="none")
-        self.edges_list.pack(pady=4)
-        self.refresh_edges_display()
+        ttk.Separator(frm_main, orient="horizontal").pack(fill="x", pady=15)
 
-        ttk.Label(frm_right, text="Notes:").pack(anchor="w", pady=(8,0))
-        notes = ("This is a demo with a small sample subgraph. For production use,\n"
-                 "replace edges with real MRT network data (CSV or API), where each\n"
-                 "edge has travel time and fare. Use the 'Combined' mode to mix\n"
-                 "time vs price with the slider. Results show the sequence of hops\n"
-                 "plus totals.")
-        ttk.Label(frm_right, text=notes, wraplength=380, justify="left").pack(anchor="w", pady=4)
-
-    def on_mode_change(self):
-        if self.mode_var.get() == "combined":
-            self.weight_frame.pack(fill="x", pady=8)
-        else:
-            self.weight_frame.forget()
-
-    def refresh_edges_display(self):
-        self.edges_list.config(state="normal")
-        self.edges_list.delete("1.0", tk.END)
-        for u, v, t, p in self.edges:
-            self.edges_list.insert(tk.END, f"{u} - {v} : {t} min, ${p:.2f}\n")
-        self.edges_list.config(state="disabled")
-
-        # update stations list in combos
-        self.graph = build_graph(self.edges)
-        self.stations = sorted(self.graph.keys())
-        self.start_combo.config(values=self.stations)
-        self.end_combo.config(values=self.stations)
+        ttk.Button(frm_main, text="Load CSV", command=self.load_csv).pack(side="left", padx=20)
+        ttk.Button(frm_main, text="Reset to Default", command=self.reset_graph).pack(side="right", padx=20)
 
     def find_path(self):
         start = self.start_var.get().strip()
         end = self.end_var.get().strip()
-        mode = self.mode_var.get()
-        w = float(self.weight_var.get()) if mode == "combined" else 0.5
-        path, totals, err = dijkstra(self.graph, start, end, mode=("combined" if mode=="combined" else mode), weight_time=w)
-        self.result_txt.config(state="normal")
-        self.result_txt.delete("1.0", tk.END)
+        path, totals, err = dijkstra(self.graph, start, end)
+
         if err:
-            self.result_txt.insert(tk.END, f"Error: {err}\n")
-        else:
-            self.result_txt.insert(tk.END, f"Path from {start} to {end} optimizing by {mode} (weight_time={w:.2f})\n\n")
-            for u, v, t, p in path:
-                self.result_txt.insert(tk.END, f"{u} -> {v} : {t} min, ${p:.2f}\n")
-            self.result_txt.insert(tk.END, "\nTotals:\n")
-            self.result_txt.insert(tk.END, f"Total travel time: {totals['time']:.1f} minutes\n")
-            self.result_txt.insert(tk.END, f"Total fare (sum of edges): ${totals['price']:.2f}\n\n")
-            self.result_txt.insert(tk.END, "Note: fares are edge-summed for demo purposes; real fare calculation may be different (distance-based or zonal).\n")
-        self.result_txt.config(state="disabled")
+            messagebox.showerror("Error", err)
+            return
+
+        route = " → ".join([u for u, _, _, _, _ in path] + [end])
+        result_text = (
+            f"{route}\n"
+            f"⏱️  Time: {totals['time']:.0f} min "
+            f"📏  Distance: {totals['distance']:.1f} km "
+            f"💵  Fare: ${totals['price']:.2f}"
+        )
+
+        self.result_label.config(text=result_text)
 
     def load_csv(self):
-        path = filedialog.askopenfilename(title="Open CSV", filetypes=[("CSV files","*.csv"),("All files","*.*")])
+        path = filedialog.askopenfilename(title="Open CSV", filetypes=[("CSV files", "*.csv")])
         if not path:
             return
         try:
             new_edges = []
-            with open(path, newline='', encoding='utf-8') as f:
-                reader = csv.reader(f)
-                for row in reader:
-                    if not row or row[0].strip().startswith("#"):
+            with open(path, newline="", encoding="utf-8") as f:
+                for row in csv.reader(f):
+                    if not row or row[0].startswith("#"):
                         continue
-                    if len(row) < 4:
-                        continue
-                    u = row[0].strip()
-                    v = row[1].strip()
-                    t = float(row[2])
-                    p = float(row[3])
-                    new_edges.append((u, v, t, p))
-            if not new_edges:
-                messagebox.showwarning("No edges", "The CSV did not contain valid edges (expected station1,station2,time,price).")
-                return
+                    u, v, d, t = row[:4]
+                    new_edges.append((u.strip(), v.strip(), float(d), float(t)))
             self.edges = new_edges
-            self.refresh_edges_display()
+            self.graph = build_graph(self.edges)
+            self.stations = sorted(self.graph.keys())
             messagebox.showinfo("Loaded", f"Loaded {len(new_edges)} edges from CSV.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to load CSV: {e}")
+            messagebox.showerror("Error", str(e))
 
     def reset_graph(self):
         self.edges = SAMPLE_EDGES.copy()
-        self.refresh_edges_display()
+        self.graph = build_graph(self.edges)
+        self.stations = sorted(self.graph.keys())
         messagebox.showinfo("Reset", "Graph reset to demo dataset.")
+        self.result_label.config(text="")
 
 if __name__ == "__main__":
     app = MRTApp()
