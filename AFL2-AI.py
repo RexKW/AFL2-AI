@@ -5,6 +5,7 @@ Clean, Modern UI + Distance, Time & Fare
 Now supports route type: Shortest Distance, Shortest Time, or Balanced
 """
 
+from collections import deque
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 from PIL import Image, ImageTk
@@ -238,6 +239,30 @@ def dijkstra(graph, start, end, mode="distance"):
 
     return path, {"distance": total_distance, "time": total_time, "price": total_price}, None
 
+# ---------- BFS (Fewest Stations) ----------
+def bfs(graph, start, end):
+    if start not in graph or end not in graph:
+        return None, "Start or end station not found."
+
+    queue = deque([[start]])
+    visited = set()
+
+    while queue:
+        path = queue.popleft()
+        node = path[-1]
+
+        if node == end:
+            return path, None
+
+        if node not in visited:
+            visited.add(node)
+            for neighbor, _, _, _ in graph.get(node, []):
+                new_path = list(path)
+                new_path.append(neighbor)
+                queue.append(new_path)
+
+    return None, "No path found."
+
 # ---------- GUI ----------
 class MRTApp(tk.Tk):
     def __init__(self):
@@ -282,7 +307,7 @@ class MRTApp(tk.Tk):
         self.mode_var = tk.StringVar(value="distance")
         ttk.Combobox(
             frm_inputs,
-            values=["distance", "time", "balanced"],
+            values=["distance", "time", "balanced", "bfs"],
             textvariable=self.mode_var,
             width=25,
         ).grid(row=1, column=1, padx=5)
