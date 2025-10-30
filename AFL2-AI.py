@@ -2,10 +2,12 @@
 """
 Singapore MRT Dijkstra Path Finder
 Clean, Modern UI + Distance, Time & Fare
+Now supports route type: Shortest Distance, Shortest Time, or Balanced
 """
 
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+from PIL import Image, ImageTk
 import csv
 import math
 
@@ -51,7 +53,14 @@ def build_graph(edges):
         graph.setdefault(v, []).append((u, dist, time, price))
     return graph
 
-def dijkstra(graph, start, end):
+
+def dijkstra(graph, start, end, mode="distance"):
+    """
+    Compute shortest path based on selected mode:
+    - 'distance' → prioritize distance
+    - 'time' → prioritize time
+    - 'balanced' → mix distance & time equally
+    """
     nodes = list(graph.keys())
     if start not in graph or end not in graph:
         return None, None, "Start or end station not found."
@@ -72,7 +81,16 @@ def dijkstra(graph, start, end):
         for neighbor, d, t, p in graph.get(current, []):
             if neighbor not in unvisited:
                 continue
-            alt = dist[current] + d
+
+            # Determine edge weight based on mode
+            if mode == "distance":
+                weight = d
+            elif mode == "time":
+                weight = t
+            else:  # balanced
+                weight = (d / 10) + (t / 10)  # normalize both
+
+            alt = dist[current] + weight
             if alt < dist[neighbor]:
                 dist[neighbor] = alt
                 prev[neighbor] = (current, d, t, p)
@@ -105,7 +123,7 @@ class MRTApp(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("🚇 Singapore MRT Route Finder")
-        self.geometry("700x420")
+        self.geometry("800x850")
         self.configure(bg="#f9fafc")
         self.resizable(False, False)
 
@@ -139,6 +157,16 @@ class MRTApp(tk.Tk):
         self.end_var = tk.StringVar(value=self.stations[-1])
         ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.end_var, width=25).grid(row=0, column=3, padx=5)
 
+        # Route mode
+        ttk.Label(frm_inputs, text="Route Type:").grid(row=1, column=0, padx=5, pady=10, sticky="e")
+        self.mode_var = tk.StringVar(value="distance")
+        ttk.Combobox(
+            frm_inputs,
+            values=["distance", "time", "balanced"],
+            textvariable=self.mode_var,
+            width=25,
+        ).grid(row=1, column=1, padx=5)
+
         ttk.Button(frm_main, text="Find Route", command=self.find_path).pack(pady=15)
 
         self.result_frame = ttk.Frame(frm_main)
@@ -149,14 +177,23 @@ class MRTApp(tk.Tk):
 
         ttk.Separator(frm_main, orient="horizontal").pack(fill="x", pady=15)
 
+        try:
+            img = Image.open("mrtMapLimit.png")
+            img = img.resize((720, 420))
+            self.mrt_img = ImageTk.PhotoImage(img)
+            ttk.Label(frm_main, image=self.mrt_img).pack(pady=10)
+        except Exception as e:
+            ttk.Label(frm_main, text=f"⚠️ Could not load mrtMapLimit.png: {e}", foreground="red").pack()
+
         ttk.Button(frm_main, text="Load CSV", command=self.load_csv).pack(side="left", padx=20)
         ttk.Button(frm_main, text="Reset to Default", command=self.reset_graph).pack(side="right", padx=20)
 
     def find_path(self):
         start = self.start_var.get().strip()
         end = self.end_var.get().strip()
-        path, totals, err = dijkstra(self.graph, start, end)
+        mode = self.mode_var.get().strip().lower()
 
+        path, totals, err = dijkstra(self.graph, start, end, mode)
         if err:
             messagebox.showerror("Error", err)
             return
@@ -166,7 +203,8 @@ class MRTApp(tk.Tk):
             f"{route}\n"
             f"⏱️  Time: {totals['time']:.0f} min "
             f"📏  Distance: {totals['distance']:.1f} km "
-            f"💵  Fare: ${totals['price']:.2f}"
+            f"💵  Fare: ${totals['price']:.2f}\n\n"
+            f"🧭 Mode: {mode.capitalize()}"
         )
 
         self.result_label.config(text=result_text)
