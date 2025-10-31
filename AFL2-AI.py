@@ -312,28 +312,31 @@ class MRTApp(tk.Tk):
         frm_main = ttk.Frame(self, padding=20)
         frm_main.pack(fill="both", expand=True)
 
-        ttk.Label(frm_main, text="Singapore MRT Path Finder", font=("Segoe UI Semibold", 16)).pack(pady=(0, 15))
+        ttk.Label(frm_main, text="MRT Path Finder", font=("Segoe UI Semibold", 16)).pack(pady=(0, 15))
 
         frm_inputs = ttk.Frame(frm_main)
         frm_inputs.pack(pady=5)
 
         ttk.Label(frm_inputs, text="Start:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
         self.start_var = tk.StringVar(value=self.stations[0])
-        ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.start_var, width=25).grid(row=0, column=1, padx=5)
+        self.start_combo = ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.start_var, width=25)
+        self.start_combo.grid(row=0, column=1, padx=5)
 
         ttk.Label(frm_inputs, text="Destination:").grid(row=0, column=2, padx=5, pady=5, sticky="e")
         self.end_var = tk.StringVar(value=self.stations[-1])
-        ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.end_var, width=25).grid(row=0, column=3, padx=5)
+        self.end_combo = ttk.Combobox(frm_inputs, values=self.stations, textvariable=self.end_var, width=25)
+        self.end_combo.grid(row=0, column=3, padx=5)
 
-        # Route mode
+        # Route type
         ttk.Label(frm_inputs, text="Route Type:").grid(row=1, column=0, padx=5, pady=10, sticky="e")
         self.mode_var = tk.StringVar(value="distance")
-        ttk.Combobox(
+        self.mode_combo = ttk.Combobox(
             frm_inputs,
             values=["distance", "time", "balanced", "bfs"],
             textvariable=self.mode_var,
             width=25,
-        ).grid(row=1, column=1, padx=5)
+        )
+        self.mode_combo.grid(row=1, column=1, padx=5)
         frm_buttons = ttk.Frame(frm_main)
         frm_buttons.pack(pady=15)
 
@@ -378,9 +381,16 @@ class MRTApp(tk.Tk):
             self.graph = build_graph(self.edges)
             self.stations = sorted(self.graph.keys())
 
+            # ✅ Update combobox values dynamically
+            self.start_combo['values'] = self.stations
+            self.end_combo['values'] = self.stations
+            self.start_var.set(self.stations[0])
+            self.end_var.set(self.stations[-1])
+
             messagebox.showinfo("Loaded", f"Loaded {len(new_edges)} edges from CSV.")
         except Exception as e:
             messagebox.showerror("Error", str(e))
+
 
 
     def reset_graph(self):
