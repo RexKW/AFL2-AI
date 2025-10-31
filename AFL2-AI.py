@@ -239,10 +239,10 @@ def dijkstra(graph, start, end, mode="distance"):
 
     return path, {"distance": total_distance, "time": total_time, "price": total_price}, None
 
-# ---------- BFS (Fewest Stations) ----------
 def bfs(graph, start, end):
+    """Find path with the fewest stations (unweighted)."""
     if start not in graph or end not in graph:
-        return None, "Start or end station not found."
+        return None, None, "Start or end station not found."
 
     queue = deque([[start]])
     visited = set()
@@ -252,16 +252,35 @@ def bfs(graph, start, end):
         node = path[-1]
 
         if node == end:
-            return path, None
+            # Compute totals (distance, time, fare)
+            total_distance = 0.0
+            total_time = 0.0
+            total_price = 0.0
+            for i in range(len(path) - 1):
+                cur = path[i]
+                nxt = path[i + 1]
+                for neighbor, d, t, p in graph[cur]:
+                    if neighbor == nxt:
+                        total_distance += d
+                        total_time += t
+                        total_price += p
+                        break
+            return [(path[i], path[i + 1], 0, 0, 0) for i in range(len(path) - 1)], {
+                "distance": total_distance,
+                "time": total_time,
+                "price": total_price,
+            }, None
 
         if node not in visited:
             visited.add(node)
             for neighbor, _, _, _ in graph.get(node, []):
-                new_path = list(path)
-                new_path.append(neighbor)
-                queue.append(new_path)
+                if neighbor not in visited:
+                    new_path = list(path)
+                    new_path.append(neighbor)
+                    queue.append(new_path)
 
-    return None, "No path found."
+    return None, None, "No path found."
+
 
 # ---------- GUI ----------
 class MRTApp(tk.Tk):
@@ -330,15 +349,16 @@ class MRTApp(tk.Tk):
         except Exception as e:
             ttk.Label(frm_main, text=f"⚠️ Could not load mrtMapLimit.png: {e}", foreground="red").pack()
 
-        # ttk.Button(frm_main, text="Load CSV", command=self.load_csv).pack(side="left", padx=20)
-        # ttk.Button(frm_main, text="Reset to Default", command=self.reset_graph).pack(side="right", padx=20)
 
     def find_path(self):
         start = self.start_var.get().strip()
         end = self.end_var.get().strip()
         mode = self.mode_var.get().strip().lower()
 
-        path, totals, err = dijkstra(self.graph, start, end, mode)
+        if mode == "bfs":
+            path, totals, err = bfs(self.graph, start, end)
+        else:
+            path, totals, err = dijkstra(self.graph, start, end, mode)
         if err:
             messagebox.showerror("Error", err)
             return
@@ -354,31 +374,7 @@ class MRTApp(tk.Tk):
 
         self.result_label.config(text=result_text)
 
-    def load_csv(self):
-        path = filedialog.askopenfilename(title="Open CSV", filetypes=[("CSV files", "*.csv")])
-        if not path:
-            return
-        try:
-            new_edges = []
-            with open(path, newline="", encoding="utf-8") as f:
-                for row in csv.reader(f):
-                    if not row or row[0].startswith("#"):
-                        continue
-                    u, v, d, t = row[:4]
-                    new_edges.append((u.strip(), v.strip(), float(d), float(t)))
-            self.edges = new_edges
-            self.graph = build_graph(self.edges)
-            self.stations = sorted(self.graph.keys())
-            messagebox.showinfo("Loaded", f"Loaded {len(new_edges)} edges from CSV.")
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
 
-    def reset_graph(self):
-        self.edges = SAMPLE_EDGES.copy()
-        self.graph = build_graph(self.edges)
-        self.stations = sorted(self.graph.keys())
-        messagebox.showinfo("Reset", "Graph reset to demo dataset.")
-        self.result_label.config(text="")
 
 if __name__ == "__main__":
     app = MRTApp()
