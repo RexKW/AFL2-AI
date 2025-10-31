@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Singapore MRT Dijkstra Path Finder
 Clean, Modern UI + Distance, Time & Fare
@@ -209,7 +209,7 @@ def dijkstra(graph, start, end, mode="distance"):
             elif mode == "time":
                 weight = t
             else:  # balanced
-                weight = (d / 10) + (t / 10)  # normalize both
+                weight = 0.5 * d + 0.5 * t  # normalize both
 
             alt = dist[current] + weight
             if alt < dist[neighbor]:
@@ -330,8 +330,8 @@ class MRTApp(tk.Tk):
         except Exception as e:
             ttk.Label(frm_main, text=f"⚠️ Could not load mrtMapLimit.png: {e}", foreground="red").pack()
 
-        ttk.Button(frm_main, text="Load CSV", command=self.load_csv).pack(side="left", padx=20)
-        ttk.Button(frm_main, text="Reset to Default", command=self.reset_graph).pack(side="right", padx=20)
+        # ttk.Button(frm_main, text="Load CSV", command=self.load_csv).pack(side="left", padx=20)
+        # ttk.Button(frm_main, text="Reset to Default", command=self.reset_graph).pack(side="right", padx=20)
 
     def find_path(self):
         start = self.start_var.get().strip()
