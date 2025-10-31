@@ -330,8 +330,12 @@ class MRTApp(tk.Tk):
             textvariable=self.mode_var,
             width=25,
         ).grid(row=1, column=1, padx=5)
+        frm_buttons = ttk.Frame(frm_main)
+        frm_buttons.pack(pady=15)
 
-        ttk.Button(frm_main, text="Find Route", command=self.find_path).pack(pady=15)
+        ttk.Button(frm_buttons, text="Load CSV", command=self.load_csv).pack(side="left", padx=10)
+        ttk.Button(frm_buttons, text="Find Route", command=self.find_path).pack(side="left", padx=10)
+        ttk.Button(frm_buttons, text="Reset to Default", command=self.reset_graph).pack(side="left", padx=10)
 
         self.result_frame = ttk.Frame(frm_main)
         self.result_frame.pack(pady=10, fill="x")
@@ -348,6 +352,39 @@ class MRTApp(tk.Tk):
             ttk.Label(frm_main, image=self.mrt_img).pack(pady=10)
         except Exception as e:
             ttk.Label(frm_main, text=f"⚠️ Could not load mrtMapLimit.png: {e}", foreground="red").pack()
+            
+    def load_csv(self):
+        path = filedialog.askopenfilename(
+            title="Open CSV",
+            filetypes=[("CSV files", "*.csv")]
+        )
+        if not path:
+            return
+
+        try:
+            new_edges = []
+            with open(path, newline="", encoding="utf-8") as f:
+                for row in csv.reader(f):
+                    if not row or row[0].startswith("#"):
+                        continue
+                    u, v, d, t = row[:4]
+                    new_edges.append((u.strip(), v.strip(), float(d), float(t)))
+
+            self.edges = new_edges
+            self.graph = build_graph(self.edges)
+            self.stations = sorted(self.graph.keys())
+
+            messagebox.showinfo("Loaded", f"Loaded {len(new_edges)} edges from CSV.")
+        except Exception as e:
+            messagebox.showerror("Error", str(e))
+
+
+    def reset_graph(self):
+        self.edges = SAMPLE_EDGES.copy()
+        self.graph = build_graph(self.edges)
+        self.stations = sorted(self.graph.keys())
+        messagebox.showinfo("Reset", "Graph reset to demo dataset.")
+        self.result_label.config(text="")
 
 
     def find_path(self):
@@ -373,8 +410,6 @@ class MRTApp(tk.Tk):
         )
 
         self.result_label.config(text=result_text)
-
-
 
 if __name__ == "__main__":
     app = MRTApp()
