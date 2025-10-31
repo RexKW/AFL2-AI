@@ -12,6 +12,10 @@ from PIL import Image, ImageTk
 import csv
 import math
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ---------- Sample Graph ----------
 # Each tuple = (Station A, Station B, Distance km, Time min)
 SAMPLE_EDGES = [
@@ -346,7 +350,7 @@ class MRTApp(tk.Tk):
         ttk.Separator(frm_main, orient="horizontal").pack(fill="x", pady=5)
 
         try:
-            img = Image.open("mrtMapLimit.png")
+            img = Image.open(os.path.join(BASE_DIR, "mrtMapLimit.png"))
             img = img.resize((720, 420))
             self.mrt_img = ImageTk.PhotoImage(img)
             ttk.Label(frm_main, image=self.mrt_img).pack(pady=10)
